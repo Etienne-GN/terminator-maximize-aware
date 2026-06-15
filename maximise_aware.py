@@ -3,7 +3,7 @@ sibling terminals in the current tab are hidden."""
 
 import gi
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk
+from gi.repository import Gtk, Gdk
 
 from terminatorlib import plugin
 from terminatorlib.config import Config
@@ -237,7 +237,7 @@ class MaximiseAware(plugin.Plugin):
     """Coordinator: reads config, builds enabled indicators, and drives them
     from maximise/unmaximise events."""
 
-    capabilities = ['maximise_aware']
+    capabilities = ['maximise_aware', 'terminal_menu']
 
     DEFAULTS = {
         'enable_badge': True,
@@ -352,6 +352,16 @@ class MaximiseAware(plugin.Plugin):
                 indicator.clear(terminal)
             except Exception as ex:
                 err('MaximiseAware: indicator.clear failed: %s' % ex)
+
+    def _rebuild_indicators(self):
+        for terminal in list(self._handlers.keys()):
+            self._clear_all(terminal)
+        self.indicators = self._build_indicators()
+
+    def callback(self, menuitems, menu, terminal):
+        item = Gtk.MenuItem.new_with_label('MaximiseAware Preferences')
+        item.connect('activate', self.configure)
+        menuitems.append(item)
 
     def unload(self):
         if self._orig_register is not None:
