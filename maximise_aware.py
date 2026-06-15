@@ -115,6 +115,8 @@ class BadgeIndicator(object):
             return
         label = terminal.titlebar.label
         text = label.get_text()
+        # A manually renamed titlebar (EditableLabel._custom) ignores set_text,
+        # so the badge is skipped there; the title and border cues still show.
         if not text.endswith(marker):
             label.set_text(text + marker)
 
