@@ -172,6 +172,18 @@ class TitleIndicator(object):
             self._orig_window[window] = base
             window.set_title(base + marker)
 
+        notebook = find_notebook(window)
+        if notebook is not None:
+            tabnum = notebook.page_num_descendant(terminal)
+            if tabnum != -1:
+                page = notebook.get_nth_page(tabnum)
+                tablabel = notebook.get_tab_label(page)
+                if tablabel is not None:
+                    base_tab = tablabel.get_label()
+                    if not base_tab.endswith(marker):
+                        self._orig_tab[tablabel] = base_tab
+                        tablabel.set_label(base_tab + marker)
+
     def clear(self, terminal):
         marker = self._markers.pop(terminal, None)
         handler = self._handlers.pop(terminal, None)
