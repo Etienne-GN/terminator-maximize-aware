@@ -1,6 +1,16 @@
 """Terminator plugin: show passive cues when a terminal is maximised while
 sibling terminals in the current tab are hidden."""
 
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk
+
+from terminatorlib import plugin
+from terminatorlib.config import Config
+from terminatorlib.factory import Factory
+from terminatorlib.terminator import Terminator
+from terminatorlib.util import dbg, err
+
 AVAILABLE = ['MaximiseAware']
 
 
@@ -36,3 +46,32 @@ def as_bool(value, default):
 def build_border_css(css_class, width, color):
     """Build the CSS rule for the subtle border indicator."""
     return '.%s { border: %dpx solid %s; }' % (css_class, int(width), color)
+
+
+class BorderIndicator(object):
+    """Draws a subtle border around the maximised terminal via per-terminal CSS."""
+
+    CSS_CLASS = 'maximise-aware-border'
+
+    def __init__(self, color, width):
+        self.provider = Gtk.CssProvider()
+        css = build_border_css(self.CSS_CLASS, width, color)
+        try:
+            self.provider.load_from_data(css.encode('utf-8'))
+        except Exception as ex:
+            err('MaximiseAware: bad border CSS %r: %s' % (css, ex))
+            self.provider = None
+
+    def show(self, terminal, count):
+        if self.provider is None:
+            return
+        ctx = terminal.get_style_context()
+        ctx.add_provider(self.provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        ctx.add_class(self.CSS_CLASS)
+
+    def clear(self, terminal):
+        if self.provider is None:
+            return
+        ctx = terminal.get_style_context()
+        ctx.remove_class(self.CSS_CLASS)
+        ctx.remove_provider(self.provider)
