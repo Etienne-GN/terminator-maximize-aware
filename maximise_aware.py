@@ -48,6 +48,15 @@ def build_border_css(css_class, width, color):
     return '.%s { border: %dpx solid %s; }' % (css_class, int(width), color)
 
 
+def find_notebook(window):
+    """Return the window's Notebook child, or None if there are no tabs."""
+    maker = Factory()
+    children = window.get_children()
+    if children and maker.isinstance(children[0], 'Notebook'):
+        return children[0]
+    return None
+
+
 class BorderIndicator(object):
     """Draws a subtle border around the maximised terminal via per-terminal CSS."""
 
@@ -119,3 +128,69 @@ class BadgeIndicator(object):
             text = label.get_text()
             if text.endswith(marker):
                 label.set_text(text[:-len(marker)])
+
+
+class TitleIndicator(object):
+    """Appends a marker to the window title (always) and tab title (if tabs)."""
+
+    def __init__(self, fmt):
+        self.fmt = fmt
+        self._markers = {}        # terminal -> marker string
+        self._orig_window = {}    # window -> original title
+        self._orig_tab = {}       # TabLabel -> original label text
+        self._win_handlers = {}   # window -> title-change handler id
+
+    def show(self, terminal, count):
+        marker = render_marker(self.fmt, count)
+        self._markers[terminal] = marker
+        window = terminal.get_toplevel()
+
+        if window not in self._orig_window:
+            self._orig_window[window] = window.get_title() or ''
+        window.set_title(self._orig_window[window] + marker)
+        if window not in self._win_handlers:
+            self._win_handlers[window] = window.connect_after(
+                'title-change', self._on_window_title_change, terminal)
+
+        notebook = find_notebook(window)
+        if notebook is not None:
+            tabnum = notebook.page_num_descendant(terminal)
+            if tabnum != -1:
+                page = notebook.get_nth_page(tabnum)
+                tablabel = notebook.get_tab_label(page)
+                if tablabel is not None and tablabel not in self._orig_tab:
+                    self._orig_tab[tablabel] = tablabel.get_label()
+                    tablabel.set_label(self._orig_tab[tablabel] + marker)
+
+    def _on_window_title_change(self, window, *args):
+        terminal = args[-1]
+        marker = self._markers.get(terminal)
+        if marker is None:
+            return
+        base = window.get_title() or ''
+        if not base.endswith(marker):
+            self._orig_window[window] = base
+            window.set_title(base + marker)
+
+    def clear(self, terminal):
+        marker = self._markers.pop(terminal, None)
+        window = terminal.get_toplevel()
+
+        handler = self._win_handlers.pop(window, None)
+        if handler is not None:
+            try:
+                window.disconnect(handler)
+            except Exception:
+                pass
+        orig = self._orig_window.pop(window, None)
+        if orig is not None:
+            window.set_title(orig)
+
+        notebook = find_notebook(window)
+        if notebook is not None and marker:
+            tabnum = notebook.page_num_descendant(terminal)
+            if tabnum != -1:
+                page = notebook.get_nth_page(tabnum)
+                tablabel = notebook.get_tab_label(page)
+                if tablabel is not None and tablabel in self._orig_tab:
+                    tablabel.set_label(self._orig_tab.pop(tablabel))
