@@ -363,6 +363,77 @@ class MaximiseAware(plugin.Plugin):
         item.connect('activate', self.configure)
         menuitems.append(item)
 
+    def configure(self, widget, data=None):
+        try:
+            self._run_configure(widget)
+        except Exception as ex:
+            err('MaximiseAware: configure dialog failed: %s' % ex)
+
+    def _run_configure(self, widget):
+        name = self.__class__.__name__
+        config = Config()
+        cur_color = str(config.plugin_get(name, 'border_color',
+                                          self.DEFAULTS['border_color']))
+        cur_width = config.plugin_get(name, 'border_width',
+                                      self.DEFAULTS['border_width'])
+        cur_title = str(config.plugin_get(name, 'title_format',
+                                          self.DEFAULTS['title_format']))
+
+        dbox = Gtk.Dialog(
+            'MaximiseAware Preferences', None, Gtk.DialogFlags.MODAL,
+            ('Cancel', Gtk.ResponseType.REJECT, 'Save', Gtk.ResponseType.ACCEPT))
+        if widget:
+            dbox.set_transient_for(widget.get_toplevel())
+
+        grid = Gtk.Grid()
+        grid.set_row_spacing(6)
+        grid.set_column_spacing(8)
+        grid.set_border_width(10)
+
+        default_rgb = hex_to_rgb(self.DEFAULTS['border_color'], (0.32, 0.58, 0.886))
+        rgb = hex_to_rgb(cur_color, default_rgb)
+        rgba = Gdk.RGBA()
+        rgba.red, rgba.green, rgba.blue, rgba.alpha = rgb[0], rgb[1], rgb[2], 1.0
+        color_btn = Gtk.ColorButton()
+        color_btn.set_rgba(rgba)
+        grid.attach(Gtk.Label(label='Border color', xalign=0), 0, 0, 1, 1)
+        grid.attach(color_btn, 1, 0, 1, 1)
+
+        try:
+            wval = int(cur_width)
+        except (TypeError, ValueError):
+            wval = self.DEFAULTS['border_width']
+        width_spin = Gtk.SpinButton()
+        width_spin.set_adjustment(
+            Gtk.Adjustment(value=wval, lower=0, upper=10, step_increment=1))
+        width_spin.set_value(wval)
+        grid.attach(Gtk.Label(label='Border width', xalign=0), 0, 1, 1, 1)
+        grid.attach(width_spin, 1, 1, 1, 1)
+
+        title_entry = Gtk.Entry()
+        title_entry.set_text(cur_title)
+        title_entry.set_width_chars(28)
+        grid.attach(Gtk.Label(label='Title text', xalign=0), 0, 2, 1, 1)
+        grid.attach(title_entry, 1, 2, 1, 1)
+        hint = Gtk.Label(label='{n} = number of hidden terminals', xalign=0)
+        hint.set_sensitive(False)
+        grid.attach(hint, 1, 3, 1, 1)
+
+        dbox.get_content_area().pack_start(grid, True, True, 0)
+        dbox.show_all()
+
+        if dbox.run() == Gtk.ResponseType.ACCEPT:
+            new_rgba = color_btn.get_rgba()
+            color = rgba_to_hex(new_rgba.red, new_rgba.green, new_rgba.blue)
+            width = int(width_spin.get_value())
+            title = title_entry.get_text()
+            config.plugin_set(name, 'border_color', color)
+            config.plugin_set(name, 'border_width', str(width))
+            config.plugin_set(name, 'title_format', title)
+            config.save()
+            self._rebuild_indicators()
+        dbox.destroy()
+
     def unload(self):
         if self._orig_register is not None:
             self.terminator.register_terminal = self._orig_register
