@@ -48,6 +48,30 @@ def build_border_css(css_class, width, color):
     return '.%s { border: %dpx solid %s; }' % (css_class, int(width), color)
 
 
+def rgba_to_hex(r, g, b):
+    """Convert RGB floats in [0,1] to a '#rrggbb' string (clamped)."""
+    def channel(value):
+        clamped = max(0.0, min(1.0, value))
+        return '%02x' % int(round(clamped * 255))
+    return '#' + channel(r) + channel(g) + channel(b)
+
+
+def hex_to_rgb(hexstr, default_rgb):
+    """Parse '#rrggbb' (with/without '#', any case) to RGB floats in [0,1].
+
+    Return default_rgb on any malformed input."""
+    text = (hexstr or '').strip().lstrip('#')
+    if len(text) != 6:
+        return default_rgb
+    try:
+        r = int(text[0:2], 16) / 255.0
+        g = int(text[2:4], 16) / 255.0
+        b = int(text[4:6], 16) / 255.0
+    except ValueError:
+        return default_rgb
+    return (r, g, b)
+
+
 def find_notebook(window):
     """Return the window's Notebook child, or None if there are no tabs."""
     maker = Factory()
