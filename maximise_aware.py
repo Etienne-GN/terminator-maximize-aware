@@ -422,17 +422,19 @@ class MaximiseAware(plugin.Plugin):
         dbox.get_content_area().pack_start(grid, True, True, 0)
         dbox.show_all()
 
-        if dbox.run() == Gtk.ResponseType.ACCEPT:
-            new_rgba = color_btn.get_rgba()
-            color = rgba_to_hex(new_rgba.red, new_rgba.green, new_rgba.blue)
-            width = int(width_spin.get_value())
-            title = title_entry.get_text()
-            config.plugin_set(name, 'border_color', color)
-            config.plugin_set(name, 'border_width', str(width))
-            config.plugin_set(name, 'title_format', title)
-            config.save()
-            self._rebuild_indicators()
-        dbox.destroy()
+        try:
+            if dbox.run() == Gtk.ResponseType.ACCEPT:
+                new_rgba = color_btn.get_rgba()
+                color = rgba_to_hex(new_rgba.red, new_rgba.green, new_rgba.blue)
+                width = int(width_spin.get_value())
+                title = title_entry.get_text()
+                config.plugin_set(name, 'border_color', color)
+                config.plugin_set(name, 'border_width', str(width))
+                config.plugin_set(name, 'title_format', title)
+                config.save()
+                self._rebuild_indicators()
+        finally:
+            dbox.destroy()
 
     def unload(self):
         if self._orig_register is not None:
