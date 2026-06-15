@@ -267,6 +267,8 @@ class MaximiseAware(plugin.Plugin):
         return len(collect_terminals(subtree, is_term))
 
     def _install(self):
+        if getattr(self.terminator, '_maximise_aware_installed', False):
+            return
         for terminal in list(self.terminator.terminals):
             self._connect_terminal(terminal)
         # Wrap registry methods so future terminals are tracked too.
@@ -283,6 +285,7 @@ class MaximiseAware(plugin.Plugin):
 
         self.terminator.register_terminal = register
         self.terminator.deregister_terminal = deregister
+        self.terminator._maximise_aware_installed = True
 
     def _connect_terminal(self, terminal):
         if terminal in self._handlers:
@@ -323,3 +326,14 @@ class MaximiseAware(plugin.Plugin):
                 indicator.clear(terminal)
             except Exception as ex:
                 err('MaximiseAware: indicator.clear failed: %s' % ex)
+
+    def unload(self):
+        if self._orig_register is not None:
+            self.terminator.register_terminal = self._orig_register
+            self._orig_register = None
+        if self._orig_deregister is not None:
+            self.terminator.deregister_terminal = self._orig_deregister
+            self._orig_deregister = None
+        for terminal in list(self._handlers.keys()):
+            self._disconnect_terminal(terminal)
+        self.terminator._maximise_aware_installed = False
