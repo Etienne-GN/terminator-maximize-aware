@@ -25,7 +25,7 @@ Optional, in `~/.config/terminator/config` under `[plugins][[MaximiseAware]]`:
         enable_title = True
         enable_border = True
         badge_format = "[⊞ {n}]"
-        title_format = " ⊞×{n}"
+        title_format = "   ◆ ⊞ {n} HIDDEN"
         border_color = "#5294e2"
         border_width = 1
 
