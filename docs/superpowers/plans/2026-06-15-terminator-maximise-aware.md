@@ -541,6 +541,8 @@ Replace the body of `__init__` with:
 
 ```python
     def _install(self):
+        if getattr(self.terminator, '_maximise_aware_installed', False):
+            return
         for terminal in list(self.terminator.terminals):
             self._connect_terminal(terminal)
         # Wrap registry methods so future terminals are tracked too.
@@ -557,6 +559,7 @@ Replace the body of `__init__` with:
 
         self.terminator.register_terminal = register
         self.terminator.deregister_terminal = deregister
+        self.terminator._maximise_aware_installed = True
 
     def _connect_terminal(self, terminal):
         if terminal in self._handlers:
@@ -635,7 +638,12 @@ On disable, restore the wrapped registry methods, clear every active cue, and di
             self._orig_deregister = None
         for terminal in list(self._handlers.keys()):
             self._disconnect_terminal(terminal)
+        self.terminator._maximise_aware_installed = False
 ```
+
+Paired with the `_install` sentinel guard (Task 6), this makes load/unload
+idempotent: a re-instantiated plugin won't stack registry wrappers, and
+disable restores the originals and clears the sentinel.
 
 - [ ] **Step 2: Verify the module still imports and unit tests still pass**
 
