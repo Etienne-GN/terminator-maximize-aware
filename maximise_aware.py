@@ -78,3 +78,44 @@ class BorderIndicator(object):
         ctx.remove_class(self.CSS_CLASS)
         ctx.remove_provider(self.provider)
         self._active.discard(terminal)
+
+
+class BadgeIndicator(object):
+    """Appends a badge to the maximised terminal's titlebar label."""
+
+    def __init__(self, fmt):
+        self.fmt = fmt
+        self._markers = {}   # terminal -> marker string
+        self._handlers = {}  # terminal -> title-change handler id
+
+    def show(self, terminal, count):
+        marker = render_marker(self.fmt, count)
+        self._markers[terminal] = marker
+        self._append(terminal)
+        if terminal not in self._handlers:
+            self._handlers[terminal] = terminal.connect_after(
+                'title-change', self._on_title_change)
+
+    def _on_title_change(self, terminal, *args):
+        if terminal in self._markers:
+            self._append(terminal)
+
+    def _append(self, terminal):
+        marker = self._markers.get(terminal)
+        if not marker:
+            return
+        label = terminal.titlebar.label
+        text = label.get_text()
+        if not text.endswith(marker):
+            label.set_text(text + marker)
+
+    def clear(self, terminal):
+        marker = self._markers.pop(terminal, None)
+        handler = self._handlers.pop(terminal, None)
+        if handler is not None:
+            terminal.disconnect(handler)
+        if marker:
+            label = terminal.titlebar.label
+            text = label.get_text()
+            if text.endswith(marker):
+                label.set_text(text[:-len(marker)])
