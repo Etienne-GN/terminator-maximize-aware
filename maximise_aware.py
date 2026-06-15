@@ -55,6 +55,7 @@ class BorderIndicator(object):
 
     def __init__(self, color, width):
         self.provider = Gtk.CssProvider()
+        self._active = set()
         css = build_border_css(self.CSS_CLASS, width, color)
         try:
             self.provider.load_from_data(css.encode('utf-8'))
@@ -63,15 +64,17 @@ class BorderIndicator(object):
             self.provider = None
 
     def show(self, terminal, count):
-        if self.provider is None:
+        if self.provider is None or terminal in self._active:
             return
         ctx = terminal.get_style_context()
         ctx.add_provider(self.provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
         ctx.add_class(self.CSS_CLASS)
+        self._active.add(terminal)
 
     def clear(self, terminal):
-        if self.provider is None:
+        if self.provider is None or terminal not in self._active:
             return
         ctx = terminal.get_style_context()
         ctx.remove_class(self.CSS_CLASS)
         ctx.remove_provider(self.provider)
+        self._active.discard(terminal)
