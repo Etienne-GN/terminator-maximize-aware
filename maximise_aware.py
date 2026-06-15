@@ -205,3 +205,59 @@ class TitleIndicator(object):
                 tablabel = notebook.get_tab_label(page)
                 if tablabel is not None and tablabel in self._orig_tab:
                     tablabel.set_label(self._orig_tab.pop(tablabel))
+
+
+class MaximiseAware(plugin.Plugin):
+    """Coordinator: reads config, builds enabled indicators, and drives them
+    from maximise/unmaximise events."""
+
+    capabilities = ['maximise_aware']
+
+    DEFAULTS = {
+        'enable_badge': True,
+        'enable_title': True,
+        'enable_border': True,
+        'badge_format': '[⊞ {n}]',
+        'title_format': ' ⊞×{n}',
+        'border_color': '#5294e2',
+        'border_width': 1,
+    }
+
+    def __init__(self):
+        plugin.Plugin.__init__(self)
+        self.terminator = Terminator()
+        self.maker = Factory()
+        self.indicators = self._build_indicators()
+
+    def _get(self, key):
+        config = Config()
+        return config.plugin_get(self.__class__.__name__, key, self.DEFAULTS[key])
+
+    def _build_indicators(self):
+        indicators = []
+        if as_bool(self._get('enable_badge'), self.DEFAULTS['enable_badge']):
+            indicators.append(BadgeIndicator(str(self._get('badge_format'))))
+        if as_bool(self._get('enable_title'), self.DEFAULTS['enable_title']):
+            indicators.append(TitleIndicator(str(self._get('title_format'))))
+        if as_bool(self._get('enable_border'), self.DEFAULTS['enable_border']):
+            try:
+                width = int(self._get('border_width'))
+            except (TypeError, ValueError):
+                width = self.DEFAULTS['border_width']
+            indicators.append(BorderIndicator(str(self._get('border_color')), width))
+        return indicators
+
+    def count_hidden(self, window, terminal):
+        """Count hidden sibling terminals in the maximised terminal's tab."""
+        zoom_data = getattr(window, 'zoom_data', None)
+        if not zoom_data:
+            return 0
+        subtree = zoom_data.get('old_child')
+        if subtree is None:
+            return 0
+        if 'notebook_tabnum' in zoom_data and self.maker.isinstance(subtree, 'Notebook'):
+            page = subtree.get_nth_page(zoom_data['notebook_tabnum'])
+            if page is not None:
+                subtree = page
+        is_term = lambda w: self.maker.isinstance(w, 'Terminal')
+        return len(collect_terminals(subtree, is_term))
