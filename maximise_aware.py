@@ -228,6 +228,10 @@ class MaximiseAware(plugin.Plugin):
         self.terminator = Terminator()
         self.maker = Factory()
         self.indicators = self._build_indicators()
+        self._handlers = {}  # terminal -> [handler ids]
+        self._orig_register = None
+        self._orig_deregister = None
+        self._install()
 
     def _get(self, key):
         config = Config()
@@ -261,3 +265,61 @@ class MaximiseAware(plugin.Plugin):
                 subtree = page
         is_term = lambda w: self.maker.isinstance(w, 'Terminal')
         return len(collect_terminals(subtree, is_term))
+
+    def _install(self):
+        for terminal in list(self.terminator.terminals):
+            self._connect_terminal(terminal)
+        # Wrap registry methods so future terminals are tracked too.
+        self._orig_register = self.terminator.register_terminal
+        self._orig_deregister = self.terminator.deregister_terminal
+
+        def register(terminal, _orig=self._orig_register):
+            _orig(terminal)
+            self._connect_terminal(terminal)
+
+        def deregister(terminal, _orig=self._orig_deregister):
+            self._disconnect_terminal(terminal)
+            _orig(terminal)
+
+        self.terminator.register_terminal = register
+        self.terminator.deregister_terminal = deregister
+
+    def _connect_terminal(self, terminal):
+        if terminal in self._handlers:
+            return
+        ids = [
+            terminal.connect_after('maximise', self._on_maximise),
+            terminal.connect_after('zoom', self._on_maximise),
+            terminal.connect_after('unzoom', self._on_unmaximise),
+        ]
+        self._handlers[terminal] = ids
+
+    def _disconnect_terminal(self, terminal):
+        self._clear_all(terminal)
+        ids = self._handlers.pop(terminal, [])
+        for hid in ids:
+            try:
+                terminal.disconnect(hid)
+            except Exception:
+                pass
+
+    def _on_maximise(self, terminal, *args):
+        window = terminal.get_toplevel()
+        count = self.count_hidden(window, terminal)
+        if count <= 0:
+            return
+        for indicator in self.indicators:
+            try:
+                indicator.show(terminal, count)
+            except Exception as ex:
+                err('MaximiseAware: indicator.show failed: %s' % ex)
+
+    def _on_unmaximise(self, terminal, *args):
+        self._clear_all(terminal)
+
+    def _clear_all(self, terminal):
+        for indicator in self.indicators:
+            try:
+                indicator.clear(terminal)
+            except Exception as ex:
+                err('MaximiseAware: indicator.clear failed: %s' % ex)
