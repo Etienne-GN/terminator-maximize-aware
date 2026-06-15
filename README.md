@@ -31,6 +31,12 @@ Optional, in `~/.config/terminator/config` under `[plugins][[MaximiseAware]]`:
 
 `{n}` is the hidden-terminal count. Each cue can be toggled independently.
 
+### Preferences dialog
+
+Border color, border width, and title text can also be set without editing the
+config file: right-click in a terminal and choose **MaximiseAware Preferences**.
+Changes apply immediately on **Save** (the next maximise shows the new look).
+
 ## Compatibility
 
 Verified against Terminator 2.1.5.
