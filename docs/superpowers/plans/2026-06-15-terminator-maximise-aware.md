@@ -322,7 +322,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 **Files:**
 - Modify: `maximise_aware.py` (add `TitleIndicator` class + `find_notebook` helper)
 
-Marks both the window title (always) and the tab title (when a tab bar exists). The window title is rebuilt by `WindowTitle.update()` on title changes, so the window marker re-applies on the window's `title-change` signal while active.
+Marks both the window title (always) and the tab title (when a tab bar exists). The window title is rebuilt by `WindowTitle.update()` on title changes, so the window marker re-applies on title changes while active. NOTE: `title-change` is a signal on `Terminal`, **not** on `Window` (`terminal.py:41`; the `Window` only connects to its terminals' `title-change` and routes it into `WindowTitle.set_title`, `window.py:418`). So the re-apply handler connects to the maximised **terminal's** `title-change` and derives the window inside the handler. Terminator's own handler runs first (normal `connect`), resetting the window title to its base; our `connect_after` handler then re-appends the marker.
 
 - [ ] **Step 1: Add a `find_notebook` module helper** (after the pure helpers, before the indicator classes)
 
@@ -347,7 +347,7 @@ class TitleIndicator(object):
         self._markers = {}        # terminal -> marker string
         self._orig_window = {}    # window -> original title
         self._orig_tab = {}       # TabLabel -> original label text
-        self._win_handlers = {}   # window -> title-change handler id
+        self._handlers = {}       # terminal -> title-change handler id
 
     def show(self, terminal, count):
         marker = render_marker(self.fmt, count)
@@ -357,9 +357,9 @@ class TitleIndicator(object):
         if window not in self._orig_window:
             self._orig_window[window] = window.get_title() or ''
         window.set_title(self._orig_window[window] + marker)
-        if window not in self._win_handlers:
-            self._win_handlers[window] = window.connect_after(
-                'title-change', self._on_window_title_change, terminal)
+        if terminal not in self._handlers:
+            self._handlers[terminal] = terminal.connect_after(
+                'title-change', self._on_title_change)
 
         notebook = find_notebook(window)
         if notebook is not None:
@@ -371,11 +371,11 @@ class TitleIndicator(object):
                     self._orig_tab[tablabel] = tablabel.get_label()
                     tablabel.set_label(self._orig_tab[tablabel] + marker)
 
-    def _on_window_title_change(self, window, *args):
-        terminal = args[-1]
+    def _on_title_change(self, terminal, *args):
         marker = self._markers.get(terminal)
         if marker is None:
             return
+        window = terminal.get_toplevel()
         base = window.get_title() or ''
         if not base.endswith(marker):
             self._orig_window[window] = base
@@ -383,14 +383,13 @@ class TitleIndicator(object):
 
     def clear(self, terminal):
         marker = self._markers.pop(terminal, None)
-        window = terminal.get_toplevel()
-
-        handler = self._win_handlers.pop(window, None)
+        handler = self._handlers.pop(terminal, None)
         if handler is not None:
             try:
-                window.disconnect(handler)
+                terminal.disconnect(handler)
             except Exception:
                 pass
+        window = terminal.get_toplevel()
         orig = self._orig_window.pop(window, None)
         if orig is not None:
             window.set_title(orig)
